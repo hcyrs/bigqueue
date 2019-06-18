@@ -1,0 +1,9 @@
+[package]
+name = "spsc"
+version = "0.1.0"
+authors = ["castellan <castellan@vip.sina.com>"]
+edition = "2018"
+
+[dependencies]
+bigqueue = { path = "../../" }
+time = "*"
