@@ -128,7 +128,7 @@ impl Sender {
     }
 
     pub fn enqueue(&mut self, elem: &[u8]) -> Result<()> {
-        unsafe { *self.inner.get().push(elem) }
+        unsafe { (*self.inner.get()).push(elem) }
     }
 }
 
@@ -138,7 +138,7 @@ impl Receiver {
     }
 
     pub fn dequeue(&mut self) -> Result<()> {
-        unsafe { *self.inner.get().dequeue() }
+        unsafe { (*self.inner.get()).dequeue() }
     }
 }
 

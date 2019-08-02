@@ -144,7 +144,7 @@ impl BigQueue {
     pub fn push(&mut self, bytes: &[u8]) -> Result<()> {
         let length = bytes.len();
         let n_offset = self.write_length(self.tail_offset, length as u64);
-        self.write_bytes(n_offset, bytes);
+        self.write_bytes(n_offset, bytes).expect("fail to write when push");
         self.set_tail_index(self.tail_aid, self.tail_offset);
         Ok(())
     }
@@ -159,7 +159,7 @@ impl BigQueue {
 
             if (head_offset + length) >= self.config.arena_size {
                 head_aid = head_aid + 1;
-                self.flip_head_page_to(head_aid);
+                self.flip_head_page_to(head_aid).expect("fail to flip next page");
                 head_offset = (head_offset + length - self.config.arena_size) % self.config.arena_size;
             } else {
                 head_offset = (head_offset + length) % self.config.arena_size;
@@ -388,7 +388,7 @@ impl BigQueue {
                     result.extend_from_slice(slice);
                     i_length = i_length - slice.len();
                     i_offset = 0;
-                    self.flip_head_page_to(self.head_aid + 1);
+                    self.flip_head_page_to(self.head_aid + 1).expect("fail to flip page when read");
                 } else {
                     return None;
                 }
@@ -397,7 +397,7 @@ impl BigQueue {
                 if let Some(slice) = self.get_head_map().get(range) {
                     result.extend_from_slice(slice);
                     if i_offset + i_length == self.config.arena_size {
-                        self.flip_head_page_to(self.head_aid + 1);
+                        self.flip_head_page_to(self.head_aid + 1).expect("fail to flip page when read");
                         self.head_offset = 0;
                     } else {
                         self.head_offset = i_offset + i_length;
@@ -499,8 +499,8 @@ impl Arena {
         read_u64(&self.mmap, offsize)
     }
 
-    pub fn read_u64_at_windows(&self, offsize: usize) -> Option<u64> {
-        self.read_u64_at(offsize * 8)
+    pub fn read_u64_at_windows(&self, win: usize) -> Option<u64> {
+        self.read_u64_at(win * 8)
     }
 
     pub fn write_u64_at(&mut self, offsize: usize, v: u64) -> Result<()> {
@@ -511,8 +511,8 @@ impl Arena {
         write_bytes(&mut self.mmap, offsize, bytes)
     }
 
-    pub fn write_u64_at_windows(&mut self, offsize: usize, v: u64) -> Result<()> {
-        self.write_u64_at(offsize * 8, v)
+    pub fn write_u64_at_windows(&mut self, win: usize, v: u64) -> Result<()> {
+        self.write_u64_at(win * 8, v)
     }
 
     pub fn flush(&mut self) -> Result<()> {
