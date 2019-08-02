@@ -6,65 +6,69 @@
 // copied, modified, or distributed except according to those terms.
 
 /*!
-A big, fast and persistent queue based on memory mapped file.
-
-```rust
-
-let mut q = BigQueue::new(&"/tmp/bigqueue", true).unwrap();
-
-let total = 10000;
-let data = b"1234567890abcdefghij";
-
-for _a in 0..total {
-    q.push(data).unwrap();
-}
-
-let mut count = 0;
-loop {
-    let pop_data = q.pop();
-    if  pop_data.is_ok() && pop_data.unwrap().len() == data.len() {
-        count = count + 1;
-    } else {
-        println!("count {}", count);
-        break;
-    }
-}
-
-```
-
-
-```rust
-fs::create_dir_all(PathBuf::from("/tmp/spsc")).expect("create dir error");
-if let Ok((mut tx, mut rx)) = bigqueue::channel("/tmp/spsc", true){
-    let v = b"1234567890abcdefghij";
-    let total = 100000000;
-    let t = thread::spawn(move|| {
-        for _i in 0..total {
-            tx.enqueue(v).unwrap();
-        }
-    });
-
-    let two_sec = Duration::from_secs(2);
-    thread::sleep(two_sec);
-
-    let start = PreciseTime::now();
-    let mut count = 0;
-    loop{
-        if rx.dequeue().is_ok() {
-            count = count + 1;
-
-        }
-        if count == total {
-            println!("count {}", count);
-            break;
-        }
-
-    }
-    let end = PreciseTime::now();
-    println!("{} seconds for enqueue and dequeue. {} ps", start.to(end), total*1000000/start.to(end).num_microseconds().unwrap());
-    t.join().unwrap();
-}
-```
+* A big, fast and persistent queue based on memory mapped file.
+*
+* ```rust
+* use bigqueue::BigQueue;
+*
+* let mut q = BigQueue::new(&"/tmp/bigqueue", true).unwrap();
+*
+* let total = 10000;
+* let data = b"1234567890abcdefghij";
+*
+* for _a in 0..total {
+*     q.push(data).unwrap();
+* }
+*
+* let mut count = 0;
+* loop {
+*     let pop_data = q.pop();
+*     if  pop_data.is_ok() && pop_data.unwrap().len() == data.len() {
+*         count = count + 1;
+*     } else {
+*         println!("count {}", count);
+*         break;
+*     }
+* }
+*
+* ```
+*
+*
+* ```rust
+* use std::{fs, thread};
+* use std::time::Duration;
+*
+* fs::create_dir_all(PathBuf::from("/tmp/spsc")).expect("create dir error");
+* if let Ok((mut tx, mut rx)) = bigqueue::channel("/tmp/spsc", true){
+*     let v = b"1234567890abcdefghij";
+*     let total = 100000000;
+*     let t = thread::spawn(move|| {
+*         for _i in 0..total {
+*             tx.enqueue(v).unwrap();
+*         }
+*     });
+*
+*     let two_sec = Duration::from_secs(2);
+*     thread::sleep(two_sec);
+*
+*     let start = PreciseTime::now();
+*     let mut count = 0;
+*     loop{
+*         if rx.dequeue().is_ok() {
+*             count = count + 1;
+*
+*         }
+*         if count == total {
+*             println!("count {}", count);
+*             break;
+*         }
+*
+*     }
+*     let end = PreciseTime::now();
+*     println!("{} seconds for enqueue and dequeue. {} ps", start.to(end), total*1000000/start.to(end).num_microseconds().unwrap());
+*     t.join().unwrap();
+* }
+* ```
 */
 
 extern crate failure;
@@ -124,17 +128,17 @@ impl Sender {
     }
 
     pub fn enqueue(&mut self, elem: &[u8]) -> Result<()> {
-        unsafe { (*self.inner.get()).push(elem) }
+        unsafe { *self.inner.get().push(elem) }
     }
 }
 
 impl Receiver {
     fn new(inner: Rc<UnsafeCell<BigQueue>>) -> Receiver {
-        Receiver { inner: inner }
+        Receiver { inner }
     }
 
     pub fn dequeue(&mut self) -> Result<()> {
-        unsafe { (*self.inner.get()).dequeue() }
+        unsafe { *self.inner.get().dequeue() }
     }
 }
 
@@ -162,25 +166,25 @@ pub enum Error {
 
 
 const DEFAULT_ARENA_SIZE: usize = 128 * 1024 * 1024;
-const MIN_MAX_IN_MEM_ARENAS: u8 = 3;
+const MIN_ARENAS_MAX_IN_MEM: u8 = 3;
 
 pub struct Config {
     pub arena_size: usize,
-    pub max_in_mem_arenas: u8,
+    pub max_arenas_in_mem: u8,
 }
 
 impl Config {
     pub fn new() -> Config {
         Config {
             arena_size: DEFAULT_ARENA_SIZE,
-            max_in_mem_arenas: MIN_MAX_IN_MEM_ARENAS,
+            max_arenas_in_mem: MIN_ARENAS_MAX_IN_MEM,
         }
     }
 }
 
 #[inline]
 fn write_u64(mmap: &mut MmapMut, offset: usize, v: u64) -> Result<()> {
-    let r = Range { start: offset as usize, end: (offset + 8) as usize };
+    let r: Range<usize> = offset..offset + 8;
     if let Some(area) = mmap.get_mut(r) {
         area.copy_from_slice(&transform_u64_to_array_of_u8(v));
         return Ok(());
@@ -191,7 +195,7 @@ fn write_u64(mmap: &mut MmapMut, offset: usize, v: u64) -> Result<()> {
 #[inline]
 fn write_bytes(mmap: &mut MmapMut, offset: usize, v: &[u8]) -> Result<()> {
     let bytes_length = v.len();
-    let r = Range { start: offset, end: (offset + bytes_length) as usize };
+    let r: Range<usize> = offset..offset + bytes_length;
     if let Some(area) = mmap.get_mut(r) {
         area.copy_from_slice(v);
         return Ok(());
